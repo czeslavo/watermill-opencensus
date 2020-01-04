@@ -1,3 +1,4 @@
+// OpenCensus tracing for Watermill
 package opencensus
 
 import (
@@ -8,15 +9,22 @@ import (
 
 const spanContextKey = "opencensus_span_context"
 
-// TracingMiddleware is a Watermill middleware providing OpenCensus tracing.
-//
-// - It creates a span with a name derived from the handler. The span is ended after message is handled.
-//   It tries to extract an existing span context from the incoming message and use it as a parent -
-//   if there's no such it creates a new one.
-// - The span context is set as the message's context so message handlers' code can start children spans out of it.
-// - Depending on a result of the message handling, the span's status is set.
-// - All messages procuded by the handler have span context set so it gets propagated further.
-//   Span context is serialized to binary format and is transported in messages' metadata.
+/*
+TracingMiddleware is a Watermill middleware providing OpenCensus tracing.
+
+It creates a span with a name derived from the handler. The span is ended after message is handled.
+It tries to extract an existing span context from the incoming message and use it as a parent -
+if there's no such it creates a new one.
+
+The span context is set as the message's context so message handlers' code can start children spans out of it.
+
+	spanCtx := trace.FromContext(message.Context())
+
+Depending on a result of the message handling, the span's status is set.
+
+All messages procuded by the handler have span context set so it gets propagated further.
+Span context is serialized to binary format and is transported in messages' metadata.
+*/
 func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 	return func(msg *message.Message) (producedMessages []*message.Message, err error) {
 		var span *trace.Span
