@@ -19,6 +19,7 @@ exporter, _ := jaeger.NewExporter(jaeger.Options{
     CollectorEndpoint: "http://localhost:14268/api/traces",
     ServiceName:       "tracing-demo",
 })
+trace.RegisterExporter(exporter)
 
 // create watermill router
 router, _ := message.NewRouter(message.RouterConfig{}, logger)
