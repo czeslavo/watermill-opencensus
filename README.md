@@ -1,6 +1,6 @@
 # watermill-opencensus
 [![](https://godoc.org/github.com/czeslavo/watermill-opencensus?status.svg)](http://godoc.org/github.com/czeslavo/watermill-opencensus)
-![](https://github.com/czeslavo/watermill-opencensus/workflows/Test/badge.svg)
+![](https://github.com/czeslavo/watermill-opencensus/workflows/Verify/badge.svg)
 
 OpenCensus tracing for Watermill.
 
