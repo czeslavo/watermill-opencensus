@@ -5,9 +5,9 @@ OpenCensus tracing for Watermill.
 # Usage
 ```go
 import (
-	"contrib.go.opencensus.io/exporter/jaeger"
-	"github.com/ThreeDotsLabs/watermill/message"
-	"go.opencensus.io/trace"
+    "contrib.go.opencensus.io/exporter/jaeger"
+    "github.com/ThreeDotsLabs/watermill/message"
+    "go.opencensus.io/trace"
     opencensus "github.com/czeslavo/watermill-opencensus"
 )
 
