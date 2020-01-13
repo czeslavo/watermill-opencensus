@@ -2,6 +2,8 @@
 package opencensus
 
 import (
+	"fmt"
+
 	"github.com/ThreeDotsLabs/watermill/message"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
@@ -82,4 +84,27 @@ func SetSpanContext(sc trace.SpanContext, msg *message.Message) {
 func GetSpanContext(message *message.Message) (sc trace.SpanContext, ok bool) {
 	binarySc := []byte(message.Metadata.Get(spanContextKey))
 	return propagation.FromBinary(binarySc)
+}
+
+func PublisherDecorator(pub message.Publisher) message.Publisher {
+	return &publisherDecorator{pub}
+}
+
+func (d *publisherDecorator) Publish(topic string, messages ...*message.Message) error {
+	for i := range messages {
+		msg := messages[i]
+		span := trace.FromContext(msg.Context())
+		if span == nil {
+			fmt.Println("No trace context")
+
+		} else {
+			SetSpanContext(span.SpanContext(), msg)
+		}
+	}
+
+	return d.Publisher.Publish(topic, messages...)
+}
+
+type publisherDecorator struct {
+	message.Publisher
 }

@@ -44,6 +44,7 @@ func main() {
 		middleware.RandomFail(0.1),
 	)
 	pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
+	publisher := opencensus.PublisherDecorator(pubsub)
 
 	router.AddHandler("message_one_handler", "message_one", pubsub, "message_two", pubsub, func(msg *message.Message) ([]*message.Message, error) {
 		logger.Debug("Received message one", nil)
@@ -70,6 +71,17 @@ func main() {
 		}
 
 		span.AddAttributes(trace.StringAttribute("time", time.Now().String()))
+
+		producedMsg := message.NewMessage(watermill.NewULID(), nil)
+		producedMsg.SetContext(msg.Context())
+		publisher.Publish("other_topic", producedMsg)
+
+		return nil
+	})
+
+	router.AddNoPublisherHandler("other_message_handler", "other_topic", pubsub, func(msg *message.Message) error {
+		logger.Debug("Received other message", nil)
+		<-time.After(time.Second)
 
 		return nil
 	})
