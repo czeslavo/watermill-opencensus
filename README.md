@@ -5,6 +5,8 @@
 OpenCensus tracing for Watermill.
 
 # Usage
+
+## Middleware
 ```go
 import (
     "contrib.go.opencensus.io/exporter/jaeger"
@@ -26,8 +28,14 @@ trace.RegisterExporter(exporter)
 // create watermill router
 router, _ := message.NewRouter(message.RouterConfig{}, logger)
 
-// add opencensus middleware 
+// add opencensus middleware
 router.AddMiddleware(
     opencensus.TracingMiddleware,
 )
+```
+
+## Publisher decorator
+```go
+pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
+publisher := opencensus.PublisherDecorator(pubsub, logger)
 ```

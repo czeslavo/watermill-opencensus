@@ -44,8 +44,7 @@ func main() {
 		middleware.RandomFail(0.1),
 	)
 	pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
-	decorator := opencensus.NewPublisherDecorator(logger)
-	publisher := decorator(pubsub)
+	publisher := opencensus.PublisherDecorator(pubsub, logger)
 
 	router.AddHandler("message_one_handler", "message_one", pubsub, "message_two", pubsub, func(msg *message.Message) ([]*message.Message, error) {
 		logger.Debug("Received message one", nil)
