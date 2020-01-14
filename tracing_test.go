@@ -58,7 +58,7 @@ func sampleMsg() *message.Message {
 func TestPublisherDecorator_propagate_span_context(t *testing.T) {
 	logger := watermill.NewStdLogger(true, false)
 	pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
-	publisher := opencensus.NewPublisherDecorator(logger)(pubsub)
+	publisher := opencensus.PublisherDecorator(pubsub, logger)
 
 	msgCh, err := pubsub.Subscribe(context.Background(), "topic")
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestPublisherDecorator_propagate_span_context(t *testing.T) {
 func TestPublisherDecorator_no_span_context_in_msg(t *testing.T) {
 	logger := watermill.NewStdLogger(true, false)
 	pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
-	publisher := opencensus.NewPublisherDecorator(logger)(pubsub)
+	publisher := opencensus.PublisherDecorator(pubsub, logger)
 
 	msgCh, err := pubsub.Subscribe(context.Background(), "topic")
 	require.NoError(t, err)

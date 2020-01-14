@@ -86,14 +86,12 @@ func GetSpanContext(message *message.Message) (sc trace.SpanContext, ok bool) {
 }
 
 /*
-NewPublisherDecorator creates `message.Publisher` decorator which propagates span context in the published message's metadata.
+PublisherDecorator decorates `message.Publisher` with propagating span context in the published message's metadata.
 
 Note: Please keep in mind that the span context needs to be passed as message's context, otherwise no action will be taken.
 */
-func NewPublisherDecorator(logger watermill.LoggerAdapter) func(pub message.Publisher) message.Publisher {
-	return func(pub message.Publisher) message.Publisher {
-		return &publisherDecorator{pub, logger}
-	}
+func PublisherDecorator(pub message.Publisher, logger watermill.LoggerAdapter) message.Publisher {
+	return &publisherDecorator{pub, logger}
 }
 
 type publisherDecorator struct {
