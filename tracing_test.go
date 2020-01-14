@@ -6,6 +6,7 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opencensus.io/trace"
@@ -52,4 +53,47 @@ func TestTracingMiddleware_no_parent_span(t *testing.T) {
 
 func sampleMsg() *message.Message {
 	return message.NewMessage(watermill.NewULID(), nil)
+}
+
+func TestPublisherDecorator_propagate_span_context(t *testing.T) {
+	logger := watermill.NewStdLogger(true, false)
+	pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
+	publisher := opencensus.PublisherDecorator(pubsub, logger)
+
+	msgCh, err := pubsub.Subscribe(context.Background(), "topic")
+	require.NoError(t, err)
+
+	msg := message.NewMessage(watermill.NewULID(), nil)
+
+	// create a span and set the message's context to the span's one
+	ctx, _ := trace.StartSpan(context.Background(), "span_name")
+	msg.SetContext(ctx)
+
+	err = publisher.Publish("topic", msg)
+	require.NoError(t, err)
+
+	// wait for the message with propagated span context
+	receivedMsg := <-msgCh
+	defer receivedMsg.Ack()
+	sc, ok := opencensus.GetSpanContext(receivedMsg)
+	require.True(t, ok)
+	require.NotNil(t, sc)
+}
+
+func TestPublisherDecorator_no_span_context_in_msg(t *testing.T) {
+	logger := watermill.NewStdLogger(true, false)
+	pubsub := gochannel.NewGoChannel(gochannel.Config{}, logger)
+	publisher := opencensus.PublisherDecorator(pubsub, logger)
+
+	msgCh, err := pubsub.Subscribe(context.Background(), "topic")
+	require.NoError(t, err)
+
+	msg := message.NewMessage(watermill.NewULID(), nil)
+	err = publisher.Publish("topic", msg)
+	require.NoError(t, err)
+
+	receivedMsg := <-msgCh
+	defer receivedMsg.Ack()
+	_, ok := opencensus.GetSpanContext(receivedMsg)
+	require.False(t, ok)
 }

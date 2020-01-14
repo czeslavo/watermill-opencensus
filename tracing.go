@@ -2,6 +2,7 @@
 package opencensus
 
 import (
+	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
@@ -82,4 +83,33 @@ func SetSpanContext(sc trace.SpanContext, msg *message.Message) {
 func GetSpanContext(message *message.Message) (sc trace.SpanContext, ok bool) {
 	binarySc := []byte(message.Metadata.Get(spanContextKey))
 	return propagation.FromBinary(binarySc)
+}
+
+/*
+PublisherDecorator decorates `message.Publisher` with propagating span context in the published message's metadata.
+
+Note: Please keep in mind that the span context needs to be passed as message's context, otherwise no action will be taken.
+*/
+func PublisherDecorator(pub message.Publisher, logger watermill.LoggerAdapter) message.Publisher {
+	return &publisherDecorator{pub, logger}
+}
+
+type publisherDecorator struct {
+	message.Publisher
+
+	logger watermill.LoggerAdapter
+}
+
+func (d *publisherDecorator) Publish(topic string, messages ...*message.Message) error {
+	for i := range messages {
+		msg := messages[i]
+		span := trace.FromContext(msg.Context())
+		if span == nil {
+			d.logger.Debug("Span context nil, cannot propagate", watermill.LogFields{"topic": topic})
+		} else {
+			SetSpanContext(span.SpanContext(), msg)
+		}
+	}
+
+	return d.Publisher.Publish(topic, messages...)
 }
