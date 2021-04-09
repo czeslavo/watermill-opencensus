@@ -2,6 +2,8 @@
 package opencensus
 
 import (
+	"encoding/base64"
+
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"go.opencensus.io/trace"
@@ -75,14 +77,20 @@ func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 
 // SetSpanContext serialize trace.SpanContext to binary format and sets it in a message's metadata.
 func SetSpanContext(sc trace.SpanContext, msg *message.Message) {
-	binarySc := string(propagation.Binary(sc))
-	msg.Metadata.Set(spanContextKey, binarySc)
+	bin := propagation.Binary(sc)
+	b64 := base64.StdEncoding.EncodeToString(bin)
+	msg.Metadata.Set(spanContextKey, b64)
 }
 
 // GetSpanContext gets and deserialize trace.SpanContext from a message's metadata.
 func GetSpanContext(message *message.Message) (sc trace.SpanContext, ok bool) {
-	binarySc := []byte(message.Metadata.Get(spanContextKey))
-	return propagation.FromBinary(binarySc)
+	b64 := message.Metadata.Get(spanContextKey)
+	bin, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return trace.SpanContext{}, false
+	}
+
+	return propagation.FromBinary(bin)
 }
 
 /*
