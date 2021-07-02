@@ -2,9 +2,10 @@
 package opencensus
 
 import (
+	"crypto/rand"
 	"encoding/base64"
+	"math/big"
 	"strconv"
-	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -86,7 +87,7 @@ func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 		messageBytes := []byte(msg.Payload)
 		messageReceivedSize := len(messageBytes)
 		span.AddMessageReceiveEvent(eID, int64(messageReceivedSize), 0)
-		span.AddAttributes(trace.StringAttribute("payload", string(msg.Payload)))
+		span.AddAttributes(trace.StringAttribute("event-payload", string(msg.Payload)))
 
 		msg.SetContext(ctx)
 		return h(msg)
@@ -136,19 +137,31 @@ func (d *publisherDecorator) Publish(topic string, messages ...*message.Message)
 			continue
 		}
 
-		SetSpanContext(span.SpanContext(), msg)
-
-		// TODO!!!
-		eID := time.Now().Unix()
+		eID := generateEventID()
 		eIDString := strconv.FormatInt(eID, 10)
+		msg.Metadata.Set(spanEventIDKey, eIDString)
 
 		messageBytes := []byte(msg.Payload)
 		messageSentSize := len(messageBytes)
-		msg.Metadata.Set(spanEventIDKey, eIDString)
-
 		span.AddMessageSendEvent(eID, int64(messageSentSize), 0)
-		span.AddAttributes(trace.StringAttribute("payload", string(msg.Payload)))
+
+		attribute := trace.StringAttribute("event-payload", string(msg.Payload))
+		span.AddAttributes(attribute)
+
+		SetSpanContext(span.SpanContext(), msg)
 	}
 
 	return d.Publisher.Publish(topic, messages...)
+}
+
+func generateEventID() int64 {
+	maxUint64 := ^uint64(0)
+	maxInt64 := int64(maxUint64 >> 1)
+
+	eID, err := rand.Int(rand.Reader, big.NewInt(maxInt64))
+	if err != nil {
+		return 0
+	}
+
+	return eID.Int64()
 }
