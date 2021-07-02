@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	spanContextKey = "opencensus_span_context"
-	spanEventIDKey = "opencensus_event_id"
+	spanContextKey               = "opencensus_span_context"
+	spanEventIDKey               = "opencensus_event_id"
+	spanEventPayloadAttributeKey = "event-payload"
 )
 
 /*
@@ -76,18 +77,15 @@ func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 			span.End()
 		}()
 
-		var eID int64
 		eIDString := msg.Metadata.Get(spanEventIDKey)
-		if eIDString != "" {
-			i, _ := strconv.ParseInt(eIDString, 10, 64)
-			// TODO!!! handle error
-			eID = i
-		}
+		eID, _ := strconv.ParseInt(eIDString, 10, 64)
 
 		messageBytes := []byte(msg.Payload)
 		messageReceivedSize := len(messageBytes)
+
+		// TODO!!! test it!
 		span.AddMessageReceiveEvent(eID, int64(messageReceivedSize), 0)
-		span.AddAttributes(trace.StringAttribute("event-payload", string(msg.Payload)))
+		span.AddAttributes(trace.StringAttribute(spanEventPayloadAttributeKey, string(msg.Payload)))
 
 		msg.SetContext(ctx)
 		return h(msg)
@@ -142,11 +140,11 @@ func (d *publisherDecorator) Publish(topic string, messages ...*message.Message)
 		msg.Metadata.Set(spanEventIDKey, eIDString)
 
 		messageBytes := []byte(msg.Payload)
-		messageSentSize := len(messageBytes)
-		span.AddMessageSendEvent(eID, int64(messageSentSize), 0)
+		messageBytesSize := len(messageBytes)
 
-		attribute := trace.StringAttribute("event-payload", string(msg.Payload))
-		span.AddAttributes(attribute)
+		// TODO!!! test it!
+		span.AddAttributes(trace.StringAttribute(spanEventPayloadAttributeKey, string(messageBytes)))
+		span.AddMessageSendEvent(eID, int64(messageBytesSize), 0)
 
 		SetSpanContext(span.SpanContext(), msg)
 	}
