@@ -2,13 +2,19 @@
 package opencensus
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 )
 
-const spanContextKey = "opencensus_span_context"
+const (
+	spanContextKey = "opencensus_span_context"
+	spanEventIDKey = "opencensus_event_id"
+)
 
 /*
 TracingMiddleware is a Watermill middleware providing OpenCensus tracing.
@@ -68,6 +74,18 @@ func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 			span.End()
 		}()
 
+		var eID int64
+		eIDString := msg.Metadata.Get(spanEventIDKey)
+		if eIDString != "" {
+			i, _ := strconv.ParseInt(eIDString, 10, 64)
+			// TODO!!! handle error
+			eID = i
+		}
+
+		messageBytes := []byte(msg.Payload)
+		messageReceivedSize := len(messageBytes)
+		span.AddMessageReceiveEvent(eID, int64(messageReceivedSize), 0)
+
 		msg.SetContext(ctx)
 		return h(msg)
 	}
@@ -103,12 +121,24 @@ type publisherDecorator struct {
 func (d *publisherDecorator) Publish(topic string, messages ...*message.Message) error {
 	for i := range messages {
 		msg := messages[i]
+
 		span := trace.FromContext(msg.Context())
 		if span == nil {
 			d.logger.Debug("Span context nil, cannot propagate", watermill.LogFields{"topic": topic})
-		} else {
-			SetSpanContext(span.SpanContext(), msg)
+			continue
 		}
+
+		SetSpanContext(span.SpanContext(), msg)
+
+		// TODO!!!
+		eID := time.Now().Unix()
+		eIDString := strconv.FormatInt(eID, 10)
+
+		messageBytes := []byte(msg.Payload)
+		messageSentSize := len(messageBytes)
+		msg.Metadata.Set(spanEventIDKey, eIDString)
+
+		span.AddMessageSendEvent(eID, int64(messageSentSize), 0)
 	}
 
 	return d.Publisher.Publish(topic, messages...)
