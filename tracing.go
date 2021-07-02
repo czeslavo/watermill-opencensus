@@ -86,6 +86,7 @@ func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 		messageBytes := []byte(msg.Payload)
 		messageReceivedSize := len(messageBytes)
 		span.AddMessageReceiveEvent(eID, int64(messageReceivedSize), 0)
+		span.AddAttributes(trace.StringAttribute("payload", string(msg.Payload)))
 
 		msg.SetContext(ctx)
 		return h(msg)
@@ -146,6 +147,7 @@ func (d *publisherDecorator) Publish(topic string, messages ...*message.Message)
 		msg.Metadata.Set(spanEventIDKey, eIDString)
 
 		span.AddMessageSendEvent(eID, int64(messageSentSize), 0)
+		span.AddAttributes(trace.StringAttribute("payload", string(msg.Payload)))
 	}
 
 	return d.Publisher.Publish(topic, messages...)
