@@ -4,6 +4,7 @@ package opencensus
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"math"
 	"math/big"
 	"strconv"
 
@@ -16,7 +17,9 @@ import (
 const (
 	spanContextKey               = "opencensus_span_context"
 	spanEventIDKey               = "opencensus_event_id"
-	spanEventPayloadAttributeKey = "event-payload"
+	spanEventPayloadAttributeKey = "event_payload"
+	payloadSizeLimit             = 256
+	payloadTruncatedMessage      = "...[payload has been truncated]"
 )
 
 /*
@@ -60,32 +63,10 @@ func TracingMiddleware(h message.HandlerFunc) message.HandlerFunc {
 			}
 		}()
 
-		defer func() {
-			if err == nil {
-				span.SetStatus(trace.Status{
-					Code:    trace.StatusCodeOK,
-					Message: "OK",
-				})
-			} else {
-				span.SetStatus(trace.Status{
-					Code:    trace.StatusCodeUnknown,
-					Message: err.Error(),
-				})
-				// some exporters don't handle status (i.e. Stackdriver) therefore we report error attribute too
-				span.AddAttributes(trace.StringAttribute("error", err.Error()))
-			}
-			span.End()
-		}()
+		defer closeSpan(span, err)
 
-		eIDString := msg.Metadata.Get(spanEventIDKey)
-		eID, _ := strconv.ParseInt(eIDString, 10, 64)
-
-		messageBytes := []byte(msg.Payload)
-		messageReceivedSize := len(messageBytes)
-
-		// TODO!!! test it!
-		span.AddMessageReceiveEvent(eID, int64(messageReceivedSize), 0)
-		span.AddAttributes(trace.StringAttribute(spanEventPayloadAttributeKey, string(msg.Payload)))
+		addSpanMessageReceiveEvent(span, msg)
+		setSpanPayloadAttribute(span, msg)
 
 		msg.SetContext(ctx)
 		return h(msg)
@@ -135,16 +116,8 @@ func (d *publisherDecorator) Publish(topic string, messages ...*message.Message)
 			continue
 		}
 
-		eID := generateEventID()
-		eIDString := strconv.FormatInt(eID, 10)
-		msg.Metadata.Set(spanEventIDKey, eIDString)
-
-		messageBytes := []byte(msg.Payload)
-		messageBytesSize := len(messageBytes)
-
-		// TODO!!! test it!
-		span.AddAttributes(trace.StringAttribute(spanEventPayloadAttributeKey, string(messageBytes)))
-		span.AddMessageSendEvent(eID, int64(messageBytesSize), 0)
+		addSpanMessageSentEvent(span, msg)
+		setSpanPayloadAttribute(span, msg)
 
 		SetSpanContext(span.SpanContext(), msg)
 	}
@@ -152,14 +125,57 @@ func (d *publisherDecorator) Publish(topic string, messages ...*message.Message)
 	return d.Publisher.Publish(topic, messages...)
 }
 
-func generateEventID() int64 {
-	maxUint64 := ^uint64(0)
-	maxInt64 := int64(maxUint64 >> 1)
+func closeSpan(span *trace.Span, err error) {
+	if err == nil {
+		span.SetStatus(trace.Status{
+			Code:    trace.StatusCodeOK,
+			Message: "OK",
+		})
+	} else {
+		span.SetStatus(trace.Status{
+			Code:    trace.StatusCodeUnknown,
+			Message: err.Error(),
+		})
+		// some exporters don't handle status (i.e. Stackdriver) therefore we report error attribute too
+		span.AddAttributes(trace.StringAttribute("error", err.Error()))
+	}
+	span.End()
+}
 
-	eID, err := rand.Int(rand.Reader, big.NewInt(maxInt64))
+func addSpanMessageReceiveEvent(span *trace.Span, msg *message.Message) {
+	eIDString := msg.Metadata.Get(spanEventIDKey)
+	eID, _ := strconv.ParseInt(eIDString, 10, 64)
+
+	messageBytes := []byte(msg.Payload)
+	messageReceivedSize := len(messageBytes)
+
+	span.AddMessageReceiveEvent(eID, int64(messageReceivedSize), 0)
+}
+
+func addSpanMessageSentEvent(span *trace.Span, msg *message.Message) {
+	eID := generateEventID()
+	eIDString := strconv.FormatInt(eID, 10)
+	msg.Metadata.Set(spanEventIDKey, eIDString)
+
+	messageBytes := []byte(msg.Payload)
+	messageReceivedSize := len(messageBytes)
+
+	span.AddMessageSendEvent(eID, int64(messageReceivedSize), 0)
+}
+
+func setSpanPayloadAttribute(span *trace.Span, msg *message.Message) {
+	payload := string(msg.Payload)
+	if len(payload) > payloadSizeLimit {
+		payload = payload[:payloadSizeLimit-len(payloadTruncatedMessage)]
+		payload += payloadTruncatedMessage
+	}
+	span.AddAttributes(trace.StringAttribute(spanEventPayloadAttributeKey, payload))
+}
+
+func generateEventID() int64 {
+	eID, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
 	if err != nil {
 		return 0
 	}
-
 	return eID.Int64()
 }
