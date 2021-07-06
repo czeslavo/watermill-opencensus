@@ -13,6 +13,4 @@ jobs:
         args: go test 
     
     - name: lint 
-      uses: "actions-contrib/golangci-lint@master"
-      with: 
-        args: "run"
+      uses: golangci/golangci-lint-action@v2
